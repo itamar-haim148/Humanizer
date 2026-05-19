@@ -6,8 +6,11 @@ import type {
   HumanizeResponse,
 } from "./types";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// Always use same-origin so requests go through the Next.js rewrite to the
+// internal API. Embedding a base URL via NEXT_PUBLIC_API_BASE_URL at build
+// time can leak internal hostnames (e.g. http://api:8000) into the browser
+// bundle and cause mixed-content failures on HTTPS deployments.
+const BASE_URL = "";
 
 async function post<TBody, TResp>(
   path: string,

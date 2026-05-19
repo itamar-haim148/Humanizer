@@ -37,8 +37,6 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}
     image: humanize-web:latest
     container_name: humanize-web
     restart: unless-stopped
@@ -50,7 +48,9 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}
+      # NEXT_PUBLIC_API_BASE_URL intentionally NOT set: the browser must call
+      # the API same-origin via the Next.js rewrite. Setting it would leak an
+      # internal hostname into the public JS bundle (mixed-content on HTTPS).
       - INTERNAL_API_BASE_URL=${INTERNAL_API_BASE_URL:-http://api:8000}
     labels:
       - traefik.enable=true
@@ -70,7 +70,7 @@ services:
       - humanize-net
       - coolify
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "--tries=1", "http://localhost:3000/"]
+      test: ["CMD", "wget", "--quiet", "--spider", "--tries=1", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 5s
       retries: 5
