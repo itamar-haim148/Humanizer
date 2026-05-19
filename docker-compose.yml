@@ -56,7 +56,13 @@ services:
       - traefik.enable=true
       - traefik.docker.network=coolify
       - traefik.http.routers.http-0-qqc0tnpodejsrekh5wlc38ar-web.service=http-0-qqc0tnpodejsrekh5wlc38ar-web
+      - traefik.http.routers.http-1-qqc0tnpodejsrekh5wlc38ar-web.service=http-1-qqc0tnpodejsrekh5wlc38ar-web
+      - traefik.http.routers.https-0-qqc0tnpodejsrekh5wlc38ar-web.service=https-0-qqc0tnpodejsrekh5wlc38ar-web
+      - traefik.http.routers.https-1-qqc0tnpodejsrekh5wlc38ar-web.service=https-1-qqc0tnpodejsrekh5wlc38ar-web
       - traefik.http.services.http-0-qqc0tnpodejsrekh5wlc38ar-web.loadbalancer.server.port=3000
+      - traefik.http.services.http-1-qqc0tnpodejsrekh5wlc38ar-web.loadbalancer.server.port=3000
+      - traefik.http.services.https-0-qqc0tnpodejsrekh5wlc38ar-web.loadbalancer.server.port=3000
+      - traefik.http.services.https-1-qqc0tnpodejsrekh5wlc38ar-web.loadbalancer.server.port=3000
     depends_on:
       api:
         condition: service_healthy
