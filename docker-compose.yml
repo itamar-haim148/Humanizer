@@ -55,6 +55,7 @@ services:
         condition: service_healthy
     networks:
       - humanize-net
+      - coolify
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--spider", "--tries=1", "http://localhost:3000/"]
       interval: 30s
@@ -67,6 +68,8 @@ services:
 networks:
   humanize-net:
     driver: bridge
+  coolify:
+    external: true
 
 volumes:
   hf_cache:
