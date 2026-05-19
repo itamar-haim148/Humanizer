@@ -1,0 +1,73 @@
+name: humanize
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: humanize-api:latest
+    container_name: humanize-api
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - WEB_ORIGIN=${WEB_ORIGIN:-http://localhost:3000}
+      - MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-10000}
+      - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-30}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
+      - ENABLE_SYNTHID=${ENABLE_SYNTHID:-false}
+      - SYNTHID_MODEL=${SYNTHID_MODEL:-google/gemma-2b}
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    networks:
+      - humanize-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 2g
+    cpus: 2.0
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://api:8000}
+    image: humanize-web:latest
+    container_name: humanize-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://api:8000}
+      - INTERNAL_API_BASE_URL=${INTERNAL_API_BASE_URL:-http://api:8000}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - humanize-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "--tries=1", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 512m
+    cpus: 1.0
+
+networks:
+  humanize-net:
+    driver: bridge
+
+volumes:
+  hf_cache:
+    driver: local

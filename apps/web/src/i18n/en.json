@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "Humanize AI",
+    "subtitle": "Make AI text sound human. Detect AI text in seconds.",
+    "languageToggle": "עברית",
+    "themeToggle": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode"
+    }
+  },
+  "tabs": {
+    "humanize": "Humanize",
+    "detect": "Detect"
+  },
+  "humanize": {
+    "inputLabel": "Paste AI text",
+    "outputLabel": "Humanized output",
+    "strength": "Strength",
+    "strengthLight": "Light",
+    "strengthMedium": "Medium",
+    "strengthAggressive": "Aggressive",
+    "cleanWatermarks": "Clean hidden watermarks",
+    "submit": "Humanize",
+    "submitting": "Humanizing…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download",
+    "clear": "Clear",
+    "wordCount": "{count} words",
+    "charCount": "{count} chars",
+    "latency": "Processed in {ms} ms",
+    "metricsTitle": "Metrics before / after",
+    "aiProbability": "AI probability",
+    "topTransformations": "Top transformations"
+  },
+  "detect": {
+    "inputLabel": "Paste text to analyze",
+    "submit": "Analyze",
+    "submitting": "Analyzing…",
+    "enableSynthid": "Enable SynthID detection",
+    "verdict": {
+      "human": "Likely Human",
+      "mixed": "Mixed Signals",
+      "ai": "Likely AI"
+    },
+    "metricsTitle": "All 12 metrics",
+    "topContributors": "Top AI signals",
+    "watermarksTitle": "Hidden watermarks",
+    "watermarksEmpty": "No hidden watermarks detected.",
+    "downloadReport": "Download report (JSON)",
+    "suspectSegments": "Suspect segments"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "tooLong": "Text exceeds the maximum length.",
+    "empty": "Please enter some text first.",
+    "retry": "Retry"
+  }
+}

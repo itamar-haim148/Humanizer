@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "האנשת AI",
+    "subtitle": "להפוך טקסט של בינה מלאכותית לכזה שנשמע אנושי. לזהות AI בשניות.",
+    "languageToggle": "English",
+    "themeToggle": {
+      "toLight": "מעבר למצב בהיר",
+      "toDark": "מעבר למצב כהה"
+    }
+  },
+  "tabs": {
+    "humanize": "האנשה",
+    "detect": "זיהוי"
+  },
+  "humanize": {
+    "inputLabel": "הדבק/י טקסט AI",
+    "outputLabel": "טקסט מואנש",
+    "strength": "עוצמה",
+    "strengthLight": "קלה",
+    "strengthMedium": "בינונית",
+    "strengthAggressive": "גבוהה",
+    "cleanWatermarks": "ניקוי סימני מים סמויים",
+    "submit": "להאניש",
+    "submitting": "מאניש…",
+    "copy": "העתק",
+    "copied": "הועתק",
+    "download": "הורד",
+    "clear": "נקה",
+    "wordCount": "{count} מילים",
+    "charCount": "{count} תווים",
+    "latency": "עיבוד תוך {ms} מ\"ש",
+    "metricsTitle": "מדדים לפני / אחרי",
+    "aiProbability": "סבירות ל-AI",
+    "topTransformations": "השינויים העיקריים"
+  },
+  "detect": {
+    "inputLabel": "הדבק/י טקסט לבדיקה",
+    "submit": "נתח",
+    "submitting": "מנתח…",
+    "enableSynthid": "הפעל זיהוי SynthID",
+    "verdict": {
+      "human": "ככל הנראה אנושי",
+      "mixed": "סימנים מעורבים",
+      "ai": "ככל הנראה AI"
+    },
+    "metricsTitle": "12 המדדים",
+    "topContributors": "האותות המובילים ל-AI",
+    "watermarksTitle": "סימני מים סמויים",
+    "watermarksEmpty": "לא נמצאו סימני מים.",
+    "downloadReport": "הורד דוח (JSON)",
+    "suspectSegments": "משפטים חשודים"
+  },
+  "errors": {
+    "generic": "משהו השתבש. אנא נסה/י שוב.",
+    "tooLong": "הטקסט ארוך מדי.",
+    "empty": "אנא הזן/י טקסט.",
+    "retry": "נסה שוב"
+  }
+}
