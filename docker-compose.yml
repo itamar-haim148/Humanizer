@@ -42,8 +42,8 @@ services:
     image: humanize-web:latest
     container_name: humanize-web
     restart: unless-stopped
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
