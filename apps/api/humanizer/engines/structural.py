@@ -31,6 +31,32 @@ _SENTENCE_SPLIT = re.compile(
     r"(?<![A-Z\d])(?<=[.!?])\s+(?=[A-Z\u05D0-\u05EA])"
 )
 
+# Words that look like sentence terminators when followed by "." + space +
+# capital letter but really aren't. The splitter rejects boundaries whose
+# preceding token matches this set (case-insensitive, internal dots allowed).
+_ABBREV_NO_SPLIT: frozenset[str] = frozenset({
+    "mr", "mrs", "ms", "dr", "prof", "sr", "jr",
+    "st", "mt", "ft",
+    "vs", "etc", "inc", "ltd", "co",
+    "e.g", "i.e", "cf",
+    "u.s", "u.k", "u.n", "e.u",
+    "no", "vol", "fig", "ed",
+})
+
+
+def _ends_with_abbrev(text: str, dot_pos: int) -> bool:
+    """True if the period at *dot_pos* terminates a known abbreviation."""
+    if dot_pos < 0 or dot_pos >= len(text) or text[dot_pos] != ".":
+        return False
+    j = dot_pos - 1
+    while j >= 0 and (text[j].isalpha() or text[j] == "."):
+        j -= 1
+    token = text[j + 1:dot_pos].lower()
+    if not token:
+        return False
+    return token in _ABBREV_NO_SPLIT
+
+
 _SPLIT_CONJUNCTIONS_EN = (
     ", and ",
     ", but ",
@@ -81,6 +107,20 @@ def _has_punchy_opener(s: str, openers: tuple[str, ...]) -> bool:
     return s.startswith(openers)
 
 
+_TRANSITION_STARTERS = (
+    # English transition words that already function as openers — adding our
+    # own punchy opener in front would double the connective ("Still,
+    # furthermore, …"). We treat any first token ending in ',' or matching
+    # this set as already-open.
+    "however,", "moreover,", "furthermore,", "additionally,",
+    "consequently,", "subsequently,", "nevertheless,", "nonetheless,",
+    "meanwhile,", "therefore,", "thus,", "hence,", "instead,",
+    "indeed,", "actually,", "specifically,",
+    # Hebrew analogues:
+    "אולם,", "אך,", "ולכן,", "לכן,", "אבל,", "כמובן,",
+)
+
+
 def _is_safe_opener_target(sentence: str, openers: tuple[str, ...]) -> bool:
     if _starts_with_list_marker(sentence):
         return False
@@ -89,6 +129,17 @@ def _is_safe_opener_target(sentence: str, openers: tuple[str, ...]) -> bool:
     if _has_punchy_opener(sentence, openers):
         return False
     parts = sentence.split(" ", 2)
+    if not parts:
+        return False
+    first = parts[0].lower()
+    # Reject sentences that already begin with a transition connective —
+    # prepending another opener would compound the connective.
+    if first in _TRANSITION_STARTERS:
+        return False
+    if first.endswith(",") and first.rstrip(",") in {
+        s.rstrip(",") for s in _TRANSITION_STARTERS
+    }:
+        return False
     if len(parts) >= 2 and parts[0][:1].isupper() and parts[1][:1].isupper():
         # Proper-noun run at the start — keep it intact.
         return False
@@ -96,7 +147,36 @@ def _is_safe_opener_target(sentence: str, openers: tuple[str, ...]) -> bool:
 
 
 def _split_sentences(text: str) -> list[str]:
-    return [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    """Split *text* into sentences, honouring common abbreviations.
+
+    The base ``_SENTENCE_SPLIT`` regex finds every ``[.!?]\\s+`` boundary
+    before a capital letter. We then reject any boundary whose preceding
+    token is a known abbreviation (Mr., Dr., e.g., …) and re-glue the
+    fragments around it.
+    """
+    parts = _SENTENCE_SPLIT.split(text)
+    if len(parts) <= 1:
+        return [s for s in parts if s.strip()]
+
+    # Walk the boundaries left-to-right. After splitting we know the
+    # boundary character is the last non-whitespace char of part[i].
+    # If that boundary is an abbreviation, glue part[i] and part[i+1]
+    # back together with a single space.
+    merged: list[str] = []
+    buf = parts[0]
+    for nxt in parts[1:]:
+        # The boundary sits between buf and nxt; locate the terminating
+        # punctuation (last "." in buf — only "." can collide with
+        # abbreviations, "!" and "?" never do).
+        if buf.rstrip().endswith(".") and _ends_with_abbrev(
+            buf, len(buf.rstrip()) - 1
+        ):
+            buf = buf + " " + nxt
+            continue
+        merged.append(buf)
+        buf = nxt
+    merged.append(buf)
+    return [s for s in merged if s.strip()]
 
 
 # ---------------------------------------------------------------------------

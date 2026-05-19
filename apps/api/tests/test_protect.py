@@ -94,15 +94,36 @@ def test_protects_heading_lines_fully() -> None:
     assert any(s == 0 and e >= heading_end for s, e in ranges)
 
 
-def test_sentence_initial_proper_noun_drops_first_token() -> None:
-    text = "Yotpo Loyalty is great."
+def test_sentence_initial_two_token_run_not_protected() -> None:
+    """``Get Started today.`` — 2-token sentence-initial run is ambiguous
+    (could just be a capitalised opener like "Click Here") so neither token
+    is protected. The dictionaries themselves are responsible for not
+    breaking these tokens."""
+    text = "Get Started today by joining the program."
     ranges = protect.lexical_protected_ranges(text)
-    # Drop "Yotpo" from the protected run (sentence-initial), keep "Loyalty".
-    yotpo_start = text.index("Yotpo")
-    loyalty_start = text.index("Loyalty")
-    # Yotpo should NOT be inside a protected range (sentence-initial fall-through).
-    # But for a fresh sentence start the heuristic still protects from the
-    # second token. We assert the second token is protected.
-    assert protect.is_protected(loyalty_start, ranges)
-    # And the bare word "Yotpo" by itself shouldn't be inside a protected run.
-    assert not protect.is_protected(yotpo_start, ranges)
+    started = text.index("Started")
+    assert not protect.is_protected(started, ranges)
+
+
+def test_sentence_initial_three_token_run_protects_tail() -> None:
+    """``Yotpo Loyalty Setup is fast.`` — 3-token sentence-initial run keeps
+    the first token free (it's the natural opener) but protects the rest."""
+    text = "Yotpo Loyalty Setup is fast."
+    ranges = protect.lexical_protected_ranges(text)
+    yotpo = text.index("Yotpo")
+    loyalty = text.index("Loyalty")
+    setup = text.index("Setup")
+    assert not protect.is_protected(yotpo, ranges)
+    assert protect.is_protected(loyalty, ranges)
+    assert protect.is_protected(setup, ranges)
+
+
+def test_mid_sentence_two_token_run_fully_protected() -> None:
+    """Mid-sentence ``Yotpo Loyalty`` is unambiguously a brand — protect
+    both tokens."""
+    text = "Switch to Yotpo Loyalty today."
+    ranges = protect.lexical_protected_ranges(text)
+    yotpo = text.index("Yotpo")
+    loyalty = text.index("Loyalty")
+    assert protect.is_protected(yotpo, ranges)
+    assert protect.is_protected(loyalty, ranges)

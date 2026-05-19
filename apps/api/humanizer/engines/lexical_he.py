@@ -39,7 +39,9 @@ _STRENGTH_RATIO: dict[Strength, float] = {
 }
 
 # Synonyms are riskier than AI-phrase swaps, so we apply them sparingly.
-_SYN_RATIO_SCALE = 0.20
+# 0.30 means at aggressive (ratio=0.85) each candidate has a ~25% chance of
+# being swapped — visible variety without compounding into nonsense.
+_SYN_RATIO_SCALE = 0.30
 
 _RNG_SEED = 1729
 

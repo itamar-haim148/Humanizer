@@ -203,17 +203,27 @@ def lexical_protected_ranges(text: str) -> list[tuple[int, int]]:
         for m in rx.finditer(text):
             ranges.append((m.start(), m.end()))
 
-    # Proper-noun runs. Drop the first token only if it's sentence-initial
-    # (otherwise the run truly is a proper noun beginning).
+    # Proper-noun runs.
+    #
+    # Mid-sentence: any 2+ Title-Case tokens are treated as a brand / proper
+    # noun and fully protected.
+    #
+    # Sentence-initial: capitalised tokens are ambiguous (sentence start
+    # could just be sentence capitalisation). We require >= 3 tokens to
+    # accept a sentence-initial run as a proper noun, and even then we drop
+    # the first token from the protected range (it's the natural sentence
+    # opener). 2-token sentence-initial runs like "Get Started" are NOT
+    # protected at all — they may legitimately be transformed.
     for m in _PROPER_NOUN_RUN_RE.finditer(text):
         run_start = m.start()
         run_end = m.end()
         if _sentence_initial(text, run_start):
             tokens = list(re.finditer(r"[A-Z][A-Za-z0-9&\-]+", m.group(0)))
-            if len(tokens) >= 2:
+            if len(tokens) >= 3:
                 second_global = run_start + tokens[1].start()
                 if second_global < run_end:
                     ranges.append((second_global, run_end))
+            # 2-token sentence-initial run: no protection.
         else:
             ranges.append((run_start, run_end))
 
