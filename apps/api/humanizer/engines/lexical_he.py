@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from humanizer.engines import protect
+
 Strength = Literal["light", "medium", "aggressive"]
 
 _DATA_DIR = Path(__file__).parent
@@ -35,6 +37,9 @@ _STRENGTH_RATIO: dict[Strength, float] = {
     "medium": 0.50,
     "aggressive": 0.85,
 }
+
+# Synonyms are riskier than AI-phrase swaps, so we apply them sparingly.
+_SYN_RATIO_SCALE = 0.20
 
 _RNG_SEED = 1729
 
@@ -87,24 +92,42 @@ def humanize_lexical_he(text: str, strength: Strength) -> LexicalResult:
     rng = random.Random(f"{_RNG_SEED}:he:{strength}:{len(text)}")
     transformations: list[str] = []
 
-    # 1) Phrases (greedy, longest first; case-insensitive though Hebrew has no case)
+    protected = protect.lexical_protected_ranges(text)
+
+    def _protected(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+        return protect.overlaps_protected(start, end, ranges)
+
+    # 1) Phrases (greedy, longest first). We collect candidate spans first
+    # then materialise the result in one pass so character offsets stay
+    # consistent for protected-range checks.
     result = text
     for phrase, replacement in sorted(_AI_PHRASES.items(), key=lambda kv: -len(kv[0])):
-        # Build a niqqud-tolerant pattern: insert optional niqqud between letters.
-        pattern_chars = []
+        pattern_chars: list[str] = []
         for ch in phrase:
             pattern_chars.append(re.escape(ch))
             if _is_hebrew_letter(ch):
                 pattern_chars.append(r"[\u0591-\u05C7]*")
         pattern = re.compile("".join(pattern_chars))
 
-        def _sub(match: re.Match[str], rep: str = replacement) -> str:
+        spans: list[tuple[int, int, str]] = []
+        for m in pattern.finditer(result):
+            if _protected(m.start(), m.end(), protected):
+                continue
             if rng.random() > ratio:
-                return match.group(0)
-            transformations.append(f"phrase: '{match.group(0)}' → '{rep}'")
-            return rep
+                continue
+            spans.append((m.start(), m.end(), replacement))
+            transformations.append(f"phrase: '{m.group(0)}' → '{replacement}'")
 
-        result = pattern.sub(_sub, result)
+        if spans:
+            out: list[str] = []
+            cursor = 0
+            for s, e, rep in spans:
+                out.append(result[cursor:s])
+                out.append(rep)
+                cursor = e
+            out.append(result[cursor:])
+            result = "".join(out)
+            protected = protect.lexical_protected_ranges(result)
 
     # 2) Single words — match optional prefix + Hebrew word.
     word_re = re.compile(
@@ -112,11 +135,11 @@ def humanize_lexical_he(text: str, strength: Strength) -> LexicalResult:
     )
 
     def _word_swap(match: re.Match[str], table: dict[str, list[str]]) -> str:
+        if _protected(match.start(), match.end(), protected):
+            return match.group(0)
         prefix = match.group("prefix") or ""
         root_raw = match.group("root")
         root = _strip_niqqud(root_raw)
-        # First try with prefix included as part of the lookup key (for cases like
-        # "בעולם" that may appear directly in the table).
         full = prefix + root
         if full in table:
             if rng.random() > ratio:
@@ -133,12 +156,15 @@ def humanize_lexical_he(text: str, strength: Strength) -> LexicalResult:
         return match.group(0)
 
     result = word_re.sub(lambda m: _word_swap(m, _AI_WORDS), result)
+    protected = protect.lexical_protected_ranges(result)
 
     # 3) General synonyms — lower ratio so we don't over-rewrite.
-    syn_ratio = ratio * 0.35
+    syn_ratio = ratio * _SYN_RATIO_SCALE
     rng2 = random.Random(f"{_RNG_SEED}:he-syn:{strength}:{len(text)}")
 
     def _syn_swap(match: re.Match[str]) -> str:
+        if _protected(match.start(), match.end(), protected):
+            return match.group(0)
         prefix = match.group("prefix") or ""
         root_raw = match.group("root")
         root = _strip_niqqud(root_raw)
