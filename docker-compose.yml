@@ -55,6 +55,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=coolify
+      - traefik.http.routers.http-0-qqc0tnpodejsrekh5wlc38ar-web.service=http-0-qqc0tnpodejsrekh5wlc38ar-web
       - traefik.http.services.http-0-qqc0tnpodejsrekh5wlc38ar-web.loadbalancer.server.port=3000
     depends_on:
       api:
