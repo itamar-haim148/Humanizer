@@ -111,13 +111,17 @@ _TRANSITION_STARTERS = (
     # English transition words that already function as openers — adding our
     # own punchy opener in front would double the connective ("Still,
     # furthermore, …"). We treat any first token ending in ',' or matching
-    # this set as already-open.
+    # this set as already-open. Includes informal forms because the lexical
+    # pass may have already replaced "Furthermore," with "Also," etc.
     "however,", "moreover,", "furthermore,", "additionally,",
     "consequently,", "subsequently,", "nevertheless,", "nonetheless,",
     "meanwhile,", "therefore,", "thus,", "hence,", "instead,",
     "indeed,", "actually,", "specifically,",
+    "also,", "plus,", "and,", "but,", "still,", "then,",
+    "so,", "yet,", "anyway,",
     # Hebrew analogues:
     "אולם,", "אך,", "ולכן,", "לכן,", "אבל,", "כמובן,",
+    "ועוד,", "וגם,", "כן,",
 )
 
 
@@ -257,14 +261,23 @@ def _transform_body(
             i += 1
 
     # 3) Opener swap — only at aggressive, only when paragraph has body.
+    # We pick an opener that doesn't already appear elsewhere in the
+    # paragraph (case-insensitive, comma included) to avoid creating
+    # repetitive openers like two "Still,"s in five sentences.
     if strength == "aggressive" and len(merged) >= _MIN_SENTENCES_FOR_OPENER:
+        paragraph_lower = " ".join(merged).lower()
+        available = [
+            op for op in openers
+            if op.strip().lower() not in paragraph_lower
+        ] or list(openers)
+
         for target_idx in (1, 2):
             if target_idx >= len(merged):
                 break
             target = merged[target_idx]
             if not _is_safe_opener_target(target, openers):
                 continue
-            opener = rng.choice(openers)
+            opener = rng.choice(available)
             first_word, _, rest = target.partition(" ")
             if not rest:
                 continue
