@@ -38,7 +38,7 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://api:8000}
+        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}
     image: humanize-web:latest
     container_name: humanize-web
     restart: unless-stopped
@@ -50,7 +50,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://api:8000}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-}
       - INTERNAL_API_BASE_URL=${INTERNAL_API_BASE_URL:-http://api:8000}
     labels:
       - traefik.enable=true

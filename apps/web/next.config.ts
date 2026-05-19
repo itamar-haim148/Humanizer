@@ -7,6 +7,16 @@ const config: NextConfig = {
   experimental: {
     typedRoutes: true,
   },
+  async rewrites() {
+    const target =
+      process.env.INTERNAL_API_BASE_URL ?? "http://api:8000";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${target}/api/:path*`,
+      },
+    ];
+  },
 };
 
 export default config;
