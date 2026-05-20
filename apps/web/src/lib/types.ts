@@ -12,7 +12,9 @@ export type WatermarkKind =
   | "control_char"
   | "homoglyph"
   | "bom"
-  | "non_standard_space";
+  | "non_standard_space"
+  | "bidi_mark"
+  | "excessive_whitespace";
 
 export interface WatermarkFinding {
   kind: WatermarkKind;
@@ -76,6 +78,12 @@ export interface HumanizeResponse {
   language: Language;
   strength: Strength;
   latency_ms: number;
+}
+
+export interface HumanizeLLMResponse extends HumanizeResponse {
+  llm_model: string;
+  llm_prompt_tokens: number | null;
+  llm_output_tokens: number | null;
 }
 
 export interface DetectRequest {

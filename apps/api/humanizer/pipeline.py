@@ -23,11 +23,13 @@ from humanizer.engines import (
     detector_watermark,
     lexical_en,
     lexical_he,
+    llm_polish,
     structural,
 )
 from humanizer.models import (
     DetectRequest,
     DetectResponse,
+    HumanizeLLMResponse,
     HumanizeRequest,
     HumanizeResponse,
     Metrics,
@@ -194,6 +196,81 @@ def run_humanize(req: HumanizeRequest) -> HumanizeResponse:
         language=req.language,
         strength=req.strength,
         latency_ms=latency,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Humanize + LLM polish (gated, requires Gemini API key + auth)
+# ---------------------------------------------------------------------------
+
+
+async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMResponse:
+    """Run the full statistical pipeline, then send the output to Gemini Flash
+    3.5 for a final human-voice polish.
+
+    The statistical pre-pass matters because it:
+    - strips watermarks the LLM might otherwise preserve
+    - removes the most blatant AI tells ('delve', 'leverage') deterministically
+    - gives a measurable metrics_before/metrics_after delta
+
+    Raises llm_polish.LLMPolishError on Gemini failure; caller maps to HTTP 502.
+    """
+    started = time.perf_counter()
+
+    metrics_before_stats = detector_statistical.compute_all(req.text, req.language)
+    metrics_before = _build_metrics(
+        metrics_before_stats, _fuse(metrics_before_stats)
+    )
+
+    working = req.text
+    transformations: list[str] = []
+    cleaning = (
+        cleaner.clean(working)
+        if req.clean_watermarks
+        else cleaner.CleanResult(cleaned_text=working)
+    )
+    working = cleaning.cleaned_text
+
+    if req.language == "en":
+        lex_en = lexical_en.humanize_lexical(working, req.strength)
+        working = lex_en.text
+        transformations.extend(lex_en.transformations)
+    else:
+        lex_he = lexical_he.humanize_lexical_he(working, req.strength)
+        working = lex_he.text
+        transformations.extend(lex_he.transformations)
+
+    working = structural.humanize_structural(working, req.language, req.strength)
+
+    # LLM polish (this is the new step).
+    polish_result = await llm_polish.polish(
+        text=working,
+        language=req.language,
+        strength=req.strength,
+        api_key=api_key,
+    )
+    working = polish_result.text
+    transformations.append(f"llm_polish:{polish_result.model}")
+
+    final_clean = cleaner.clean(working)
+    working = final_clean.cleaned_text
+
+    metrics_after_stats = detector_statistical.compute_all(working, req.language)
+    metrics_after = _build_metrics(metrics_after_stats, _fuse(metrics_after_stats))
+
+    latency = round((time.perf_counter() - started) * 1000, 2)
+    return HumanizeLLMResponse(
+        humanized_text=working,
+        metrics_before=metrics_before,
+        metrics_after=metrics_after,
+        transformations=transformations[:50],
+        cleaning_report=cleaning.to_report(),
+        language=req.language,
+        strength=req.strength,
+        latency_ms=latency,
+        llm_model=polish_result.model,
+        llm_prompt_tokens=polish_result.prompt_tokens,
+        llm_output_tokens=polish_result.output_tokens,
     )
 
 

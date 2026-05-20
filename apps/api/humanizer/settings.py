@@ -27,6 +27,14 @@ class Settings(BaseSettings):
 
     rate_limit_window_seconds: int = 60
 
+    # ----- LLM mode (Gemini Flash 3.5) -----
+    # All three must be set for /api/humanize/llm to function.
+    # Stored as env vars (Coolify secrets). Empty string disables the feature.
+    gemini_api_key: str = ""
+    llm_user: str = ""
+    llm_password: str = ""
+    llm_rate_limit_per_min: int = 10  # Stricter than open endpoints (costs money)
+
     @property
     def version(self) -> str:
         from humanizer import __version__

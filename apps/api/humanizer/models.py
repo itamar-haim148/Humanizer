@@ -26,6 +26,8 @@ class WatermarkFinding(BaseModel):
         "homoglyph",
         "bom",
         "non_standard_space",
+        "bidi_mark",
+        "excessive_whitespace",
     ]
     char: str
     codepoint: str  # e.g. "U+200B"
@@ -122,6 +124,14 @@ class HumanizeResponse(BaseModel):
     language: Language
     strength: Strength
     latency_ms: float
+
+
+class HumanizeLLMResponse(HumanizeResponse):
+    """Same payload as HumanizeResponse plus LLM polish metadata."""
+
+    llm_model: str
+    llm_prompt_tokens: int | None = None
+    llm_output_tokens: int | None = None
 
 
 class DetectResponse(BaseModel):

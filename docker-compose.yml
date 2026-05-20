@@ -20,6 +20,11 @@ services:
       - SYNTHID_MODEL=${SYNTHID_MODEL:-google/gemma-2b}
       - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
       - HF_HOME=/root/.cache/huggingface
+      # LLM mode (gated /api/humanize/llm) — all three must be set or endpoint 503s.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - LLM_USER=${LLM_USER:-}
+      - LLM_PASSWORD=${LLM_PASSWORD:-}
+      - LLM_RATE_LIMIT_PER_MIN=${LLM_RATE_LIMIT_PER_MIN:-10}
     volumes:
       - hf_cache:/root/.cache/huggingface
     networks:

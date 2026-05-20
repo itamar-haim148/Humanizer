@@ -10,7 +10,8 @@
   },
   "tabs": {
     "humanize": "Humanize",
-    "detect": "Detect"
+    "detect": "Detect",
+    "llm": "LLM Mode"
   },
   "humanize": {
     "inputLabel": "Paste AI text",
@@ -55,5 +56,21 @@
     "tooLong": "Text exceeds the maximum length.",
     "empty": "Please enter some text first.",
     "retry": "Retry"
+  },
+  "llm": {
+    "title": "LLM Mode (Gemini Flash 3.5)",
+    "description": "Final-pass polish by Google's Gemini Flash 3.5 after the statistical pipeline. Restricted to authorized users.",
+    "loginTitle": "Sign in",
+    "user": "Username",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "signedInAs": "Signed in as {user}",
+    "logout": "Logout",
+    "invalidCreds": "Invalid username or password.",
+    "notConfigured": "LLM mode is not configured on this server.",
+    "gemini502": "Gemini polish failed. Please retry.",
+    "model": "Model",
+    "tokens": "Tokens: {prompt} in / {output} out"
   }
 }

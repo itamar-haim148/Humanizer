@@ -2,6 +2,7 @@ import type {
   ApiResult,
   DetectRequest,
   DetectResponse,
+  HumanizeLLMResponse,
   HumanizeRequest,
   HumanizeResponse,
 } from "./types";
@@ -15,12 +16,13 @@ const BASE_URL = "";
 async function post<TBody, TResp>(
   path: string,
   body: TBody,
+  extraHeaders?: Record<string, string>,
 ): Promise<ApiResult<TResp>> {
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(extraHeaders ?? {}) },
       body: JSON.stringify(body),
       cache: "no-store",
     });
@@ -59,4 +61,20 @@ export function humanize(
 
 export function detect(req: DetectRequest): Promise<ApiResult<DetectResponse>> {
   return post("/api/detect", req);
+}
+
+/**
+ * Encodes `user:password` as a Basic auth header value.
+ * Uses btoa (browser) — safe for ASCII; for unicode user/pass would need a
+ * TextEncoder pass, but the LLM gate is single-user with ASCII credentials.
+ */
+export function makeBasicAuth(user: string, password: string): string {
+  return `Basic ${btoa(`${user}:${password}`)}`;
+}
+
+export function humanizeLLM(
+  req: HumanizeRequest,
+  basicAuth: string,
+): Promise<ApiResult<HumanizeLLMResponse>> {
+  return post("/api/humanize/llm", req, { Authorization: basicAuth });
 }

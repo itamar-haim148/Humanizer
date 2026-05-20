@@ -4,8 +4,9 @@ import { useState } from "react";
 import type { Dict, Locale } from "@/i18n";
 import { HumanizePanel } from "./HumanizePanel";
 import { DetectPanel } from "./DetectPanel";
+import { LLMPanel } from "./LLMPanel";
 
-type Tab = "humanize" | "detect";
+type Tab = "humanize" | "detect" | "llm";
 
 interface TabsProps {
   locale: Locale;
@@ -22,7 +23,7 @@ export function Tabs({ locale, dict }: TabsProps) {
         aria-label="Mode"
         className="inline-flex rounded-lg border border-[rgb(var(--border))] p-1"
       >
-        {(["humanize", "detect"] as const).map((tab) => {
+        {(["humanize", "detect", "llm"] as const).map((tab) => {
           const selected = active === tab;
           return (
             <button
@@ -45,8 +46,10 @@ export function Tabs({ locale, dict }: TabsProps) {
       </div>
       {active === "humanize" ? (
         <HumanizePanel locale={locale} dict={dict} />
-      ) : (
+      ) : active === "detect" ? (
         <DetectPanel locale={locale} dict={dict} />
+      ) : (
+        <LLMPanel locale={locale} dict={dict} />
       )}
     </div>
   );

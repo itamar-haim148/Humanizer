@@ -20,13 +20,36 @@ from humanizer.models import CleaningReport, WatermarkFinding
 # Codepoint tables
 # ---------------------------------------------------------------------------
 
-# Strip entirely (replace with empty string)
+# Strip entirely (replace with empty string).
+#
+# Set unified from:
+#  * ByteMastermind/Markless-GPT (zero-width family)
+#  * cronos3k/Text-Stealth-Watermark-Cleaner-Detector (bidi marks, bidi
+#    override, invisible math operators, soft hyphen)
 _STRIP_CHARS: dict[str, str] = {
     "\u200B": "ZERO WIDTH SPACE",
     "\u200C": "ZERO WIDTH NON-JOINER",
     "\u200D": "ZERO WIDTH JOINER",
     "\u2060": "WORD JOINER",
     "\u180E": "MONGOLIAN VOWEL SEPARATOR",
+    "\u00AD": "SOFT HYPHEN",
+    "\u202A": "LEFT-TO-RIGHT EMBEDDING",
+    "\u202B": "RIGHT-TO-LEFT EMBEDDING",
+    "\u202C": "POP DIRECTIONAL FORMATTING",
+    "\u202D": "LEFT-TO-RIGHT OVERRIDE",
+    "\u202E": "RIGHT-TO-LEFT OVERRIDE",
+    "\u2061": "FUNCTION APPLICATION (invisible)",
+    "\u2062": "INVISIBLE TIMES",
+    "\u2063": "INVISIBLE SEPARATOR",
+    "\u2064": "INVISIBLE PLUS",
+}
+
+# LRM / RLM are kept as findings only — they are sometimes legitimate in
+# Hebrew documents for mixed-script rendering of numerals and punctuation.
+# Removing them silently could break the user's intent.
+_REPORT_ONLY_CHARS: dict[str, str] = {
+    "\u200E": "LEFT-TO-RIGHT MARK",
+    "\u200F": "RIGHT-TO-LEFT MARK",
 }
 
 # Normalize non-standard spaces to U+0020
@@ -92,6 +115,16 @@ def detect_only(text: str) -> list[WatermarkFinding]:
                     codepoint=_codepoint(ch),
                     index=i,
                     note=_STRIP_CHARS[ch],
+                )
+            )
+        elif ch in _REPORT_ONLY_CHARS:
+            findings.append(
+                WatermarkFinding(
+                    kind="bidi_mark",
+                    char=ch,
+                    codepoint=_codepoint(ch),
+                    index=i,
+                    note=_REPORT_ONLY_CHARS[ch] + " (kept — may be legitimate)",
                 )
             )
         elif ch == BOM:

@@ -10,7 +10,8 @@
   },
   "tabs": {
     "humanize": "האנשה",
-    "detect": "זיהוי"
+    "detect": "זיהוי",
+    "llm": "מצב LLM"
   },
   "humanize": {
     "inputLabel": "הדבק/י טקסט AI",
@@ -55,5 +56,21 @@
     "tooLong": "הטקסט ארוך מדי.",
     "empty": "אנא הזן/י טקסט.",
     "retry": "נסה שוב"
+  },
+  "llm": {
+    "title": "מצב LLM (Gemini Flash 3.5)",
+    "description": "ליטוש סופי באמצעות Gemini Flash 3.5 של גוגל לאחר הצינור הסטטיסטי. מוגבל למשתמשים מורשים.",
+    "loginTitle": "כניסה",
+    "user": "שם משתמש",
+    "password": "סיסמה",
+    "signIn": "כניסה",
+    "signingIn": "מתחבר…",
+    "signedInAs": "מחובר כ-{user}",
+    "logout": "התנתק",
+    "invalidCreds": "שם משתמש או סיסמה שגויים.",
+    "notConfigured": "מצב LLM לא מוגדר בשרת.",
+    "gemini502": "ליטוש Gemini נכשל. נסה/י שוב.",
+    "model": "מודל",
+    "tokens": "טוקנים: {prompt} כניסה / {output} יציאה"
   }
 }
