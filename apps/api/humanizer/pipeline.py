@@ -24,6 +24,7 @@ from humanizer.engines import (
     lexical_en,
     lexical_he,
     llm_polish,
+    post_llm_polish,
     structural,
 )
 from humanizer.models import (
@@ -207,7 +208,8 @@ def run_humanize(req: HumanizeRequest) -> HumanizeResponse:
 async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMResponse:
     """LLM first, then scrub its output with the statistical pipeline.
 
-    Order: cleaner(input) -> LLM polish -> cleaner -> lexical -> structural -> cleaner.
+    Order: cleaner(input) -> LLM polish -> cleaner -> post_llm_polish (EN)
+           -> lexical -> structural -> cleaner.
 
     Why LLM-first:
     - Gemini rewrites for natural human voice but routinely re-introduces
@@ -246,10 +248,19 @@ async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMRes
     transformations.append(f"llm_polish:{polish_result.model}")
 
     # 2. Scrub the LLM output: watermarks first (so the lexical/structural
-    #    engines see clean text), then AI vocabulary, then sentence-shape
-    #    rewrites.
-    post_llm = cleaner.clean(working)
-    working = post_llm.cleaned_text
+    #    engines see clean text), then LLM-specific structural tells
+    #    (semicolon-pivots, intensifier adjectives), then AI vocabulary,
+    #    then sentence-shape rewrites.
+    post_clean = cleaner.clean(working)
+    working = post_clean.cleaned_text
+
+    # 2b. Post-LLM pattern fixes — only meaningful in LLM mode because
+    #     these target Gemini/GPT rewrite habits that the regular pipeline
+    #     never has to deal with.
+    if req.language == "en":
+        post_polish = post_llm_polish.polish(working, req.strength)
+        working = post_polish.text
+        transformations.extend(post_polish.transformations)
 
     if req.language == "en":
         lex_en = lexical_en.humanize_lexical(working, req.strength)

@@ -85,6 +85,14 @@ _LONG_HE_WORDS = 22
 _SHORT_WORDS = 6
 _MIN_SENTENCES_FOR_OPENER = 3
 
+# Burstiness booster: if a paragraph has ≥3 prose sentences with a
+# burstiness (stdev/mean of word counts) below this threshold, the
+# longest sentence is force-split at a conjunction regardless of the
+# length threshold. AI text typically scores 0.20-0.40; human prose 0.55+.
+_LOW_BURSTINESS_THRESHOLD = 0.45
+_BOOSTER_MIN_SENTENCES = 3
+_BOOSTER_FORCE_MIN_WORDS = 14
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -235,6 +243,40 @@ def _transform_body(
                 split_results.append(s)
         else:
             split_results.append(s)
+
+    # 1b) Burstiness booster: if all sentences are similar length and the
+    #     paragraph has 3+ sentences, force-split the longest at a conj.
+    if (
+        strength == "aggressive"
+        and len(split_results) >= _BOOSTER_MIN_SENTENCES
+    ):
+        counts = [_word_count(s) for s in split_results]
+        mean = sum(counts) / len(counts)
+        if mean > 0:
+            stdev = (sum((c - mean) ** 2 for c in counts) / len(counts)) ** 0.5
+            burst = stdev / mean
+            if burst < _LOW_BURSTINESS_THRESHOLD:
+                # Force-split the longest sentence at a conjunction even if
+                # it sits below _LONG_EN_WORDS.
+                longest_idx = max(range(len(split_results)), key=lambda i: counts[i])
+                s = split_results[longest_idx]
+                if counts[longest_idx] >= _BOOSTER_FORCE_MIN_WORDS:
+                    for conj in conjunctions:
+                        idx = s.find(conj)
+                        if idx > 10:
+                            first = s[:idx].rstrip(" ,;") + "."
+                            rest_raw = s[idx + len(conj):]
+                            rest = (
+                                rest_raw[:1].upper() + rest_raw[1:]
+                                if language == "en"
+                                else rest_raw
+                            )
+                            split_results = (
+                                split_results[:longest_idx]
+                                + [first, rest]
+                                + split_results[longest_idx + 1:]
+                            )
+                            break
 
     # 2) Merge short adjacent sentences (only when both look like prose).
     merged: list[str] = []
