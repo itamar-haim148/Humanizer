@@ -65,12 +65,20 @@ _FENCED_CODE_RE = re.compile(r"```[\s\S]*?```", flags=re.MULTILINE)
 _PARENTHETICAL_META_RE = re.compile(r"\([^()\n]*\d[^()\n]*\)")
 
 # Markdown link / image syntax (StealthHumanizer patterns).
-# Image: ![alt](url)   Link: [text](url)
-# Protect the *whole* construct — alt/text often contains brand names and the
-# `(url)` portion is already URL-protected, but combining them avoids partial
-# transforms that break Markdown rendering.
-_MD_IMAGE_RE = re.compile(r"!\[[^\]\n]*\]\([^)\n]+\)")
-_MD_LINK_RE = re.compile(r"(?<!\!)\[[^\]\n]+\]\([^)\n]+\)")
+# Image: ![alt](url)   Link: [text](url)   Reference: [text][ref] or [text][]
+#
+# The URL portion allows ONE level of balanced parens to handle URLs like
+# https://en.wikipedia.org/wiki/Foo_(bar) — the most common real-world case
+# of unescaped parens. Full balance-matching needs PCRE recursion which
+# `re` doesn't support; one level catches >99% of pasted Markdown.
+_MD_URL_BODY = r"[^()\n]*(?:\([^()\n]*\)[^()\n]*)*"
+_MD_IMAGE_RE = re.compile(rf"!\[[^\]\n]*\]\({_MD_URL_BODY}\)")
+_MD_LINK_INLINE_RE = re.compile(rf"(?<!\!)\[[^\]\n]+\]\({_MD_URL_BODY}\)")
+_MD_LINK_REF_RE = re.compile(r"(?<!\!)\[[^\]\n]+\]\[[^\]\n]*\]")
+# Reference definition line: "[ref]: https://example.com optional title"
+_MD_LINK_REF_DEF_RE = re.compile(
+    r"^\s*\[[^\]\n]+\]:\s+\S.*$", flags=re.MULTILINE
+)
 
 # Social mentions and hashtags. Common in marketing copy that gets pasted in.
 # Mentions: @username  Hashtags: #topic  (ASCII + Hebrew letters allowed)
@@ -128,9 +136,15 @@ def _classify_line(line: str) -> tuple[LineKind, int]:
         return "heading", 0
 
     # Blockquote — protect the "> " marker(s), allow body to be transformed
-    # as prose. Treated as list_item for protection purposes.
+    # as prose. A short body without terminal punctuation is promoted to
+    # heading (consistent with list-marker behaviour).
     m = _BLOCKQUOTE_RE.match(line)
     if m:
+        body = line[m.end():].strip()
+        no_terminator = not body.endswith(_TERMINATORS)
+        is_short = len(body.split()) <= _HEADING_MAX_WORDS
+        if no_terminator and is_short:
+            return "heading", 0
         return "list_item", m.end()
 
     # List item.
@@ -221,7 +235,7 @@ def lexical_protected_ranges(text: str) -> list[tuple[int, int]]:
 
     # Markdown images/links before URL detection so the [text](url) construct
     # is protected as a whole, not just the url portion.
-    for rx in (_MD_IMAGE_RE, _MD_LINK_RE):
+    for rx in (_MD_IMAGE_RE, _MD_LINK_INLINE_RE, _MD_LINK_REF_RE, _MD_LINK_REF_DEF_RE):
         for m in rx.finditer(text):
             ranges.append((m.start(), m.end()))
 

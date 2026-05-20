@@ -57,10 +57,7 @@
   "require": ["need"],
   "requires": ["needs"],
   "required": ["needed"],
-  "objective": ["goal"],
-  "objectives": ["goals"],
   "comprehend": ["understand"],
   "comprehends": ["understands"],
-  "comprehended": ["understood"],
-  "via": ["through"]
+  "comprehended": ["understood"]
 }

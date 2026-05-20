@@ -171,3 +171,34 @@ def test_blockquote_marker_protected_body_free() -> None:
     # Body free for transformation.
     body_idx = text.index("This")
     assert not protect.is_protected(body_idx, ranges)
+
+
+def test_blockquote_short_body_promoted_to_heading() -> None:
+    """A short blockquote without terminal punctuation behaves like a
+    short list item — promoted to heading and fully protected."""
+    text = "> TL DR Summary"
+    [line] = protect.classify_lines(text)
+    assert line.kind == "heading"
+
+
+def test_markdown_link_with_parens_in_url() -> None:
+    text = "See [Foo](https://en.wikipedia.org/wiki/Foo_(bar)) docs."
+    ranges = protect.lexical_protected_ranges(text)
+    start = text.index("[Foo]")
+    end = text.rindex(")") + 1
+    assert any(s <= start and e >= end for s, e in ranges)
+
+
+def test_markdown_reference_link_protected() -> None:
+    text = "Read [the manual][m1] before you start."
+    ranges = protect.lexical_protected_ranges(text)
+    start = text.index("[the manual]")
+    end = text.index("[m1]") + len("[m1]")
+    assert any(s <= start and e >= end for s, e in ranges)
+
+
+def test_markdown_reference_definition_protected() -> None:
+    text = "Body line with verb.\n[m1]: https://example.com/docs Some Title"
+    ranges = protect.lexical_protected_ranges(text)
+    start = text.index("[m1]:")
+    assert any(s <= start for s, _ in ranges)

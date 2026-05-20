@@ -281,12 +281,18 @@ def clean(text: str) -> CleanResult:
     # Detect runs of 2+ consecutive ASCII spaces/tabs as a watermark signal
     # (cronos3k pattern). Report-only — collapsing whitespace is a stylistic
     # decision left to the pipeline's structural engines.
-    for m in re.finditer(r"[ \t]{2,}", interim):
+    #
+    # Scan the *original* text so indices match the indices of other findings
+    # (which use `enumerate(text)`). NBSP/thin-space sequences are already
+    # surfaced as `nbsp` / `non_standard_space` findings, so restricting to
+    # raw ASCII space/tab avoids double-reporting.
+    for m in re.finditer(r"[ \t]{2,}", text):
+        first = m.group(0)[:1]
         findings.append(
             WatermarkFinding(
                 kind="excessive_whitespace",
-                char=m.group(0)[:1],
-                codepoint=_codepoint(" "),
+                char=first,
+                codepoint=_codepoint(first),
                 index=m.start(),
                 note=f"{m.end() - m.start()} consecutive whitespace chars",
             )
