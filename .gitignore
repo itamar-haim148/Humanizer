@@ -43,3 +43,7 @@ yarn-error.log*
 
 # Claude
 .claude/
+
+# Local scratchpads / tool caches
+.scratch/
+.playwright-mcp/

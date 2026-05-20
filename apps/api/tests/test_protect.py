@@ -202,3 +202,13 @@ def test_markdown_reference_definition_protected() -> None:
     ranges = protect.lexical_protected_ranges(text)
     start = text.index("[m1]:")
     assert any(s <= start for s, _ in ranges)
+
+
+def test_markdown_footnote_definition_not_protected() -> None:
+    """`[^1]: ...` is a footnote definition (content), not a URL reference.
+    Must remain transformable; the `(?!\\^)` exclusion in the regex prevents
+    false-positive matching by the link-definition pattern."""
+    text = "Body sentence here.\n[^1]: This footnote contains a complete prose sentence."
+    ranges = protect.lexical_protected_ranges(text)
+    footnote_idx = text.index("This footnote")
+    assert not protect.is_protected(footnote_idx, ranges)

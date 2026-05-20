@@ -76,8 +76,10 @@ _MD_IMAGE_RE = re.compile(rf"!\[[^\]\n]*\]\({_MD_URL_BODY}\)")
 _MD_LINK_INLINE_RE = re.compile(rf"(?<!\!)\[[^\]\n]+\]\({_MD_URL_BODY}\)")
 _MD_LINK_REF_RE = re.compile(r"(?<!\!)\[[^\]\n]+\]\[[^\]\n]*\]")
 # Reference definition line: "[ref]: https://example.com optional title"
+# Excludes footnote definitions ("[^1]: ..."): those are content, not URL refs,
+# and need to remain transformable (they often contain prose).
 _MD_LINK_REF_DEF_RE = re.compile(
-    r"^\s*\[[^\]\n]+\]:\s+\S.*$", flags=re.MULTILINE
+    r"^\s*\[(?!\^)[^\]\n]+\]:\s+\S.*$", flags=re.MULTILINE
 )
 
 # Social mentions and hashtags. Common in marketing copy that gets pasted in.

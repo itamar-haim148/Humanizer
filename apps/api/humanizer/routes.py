@@ -28,7 +28,7 @@ def _enforce_size(text: str) -> None:
     cap = get_settings().max_text_length
     if len(text) > cap:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"text exceeds MAX_TEXT_LENGTH={cap}",
         )
 

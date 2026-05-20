@@ -285,8 +285,10 @@ def clean(text: str) -> CleanResult:
     # Scan the *original* text so indices match the indices of other findings
     # (which use `enumerate(text)`). NBSP/thin-space sequences are already
     # surfaced as `nbsp` / `non_standard_space` findings, so restricting to
-    # raw ASCII space/tab avoids double-reporting.
-    for m in re.finditer(r"[ \t]{2,}", text):
+    # raw ASCII space/tab avoids double-reporting. The `(?<=\S)` lookbehind
+    # skips line-leading indentation (code blocks, poetry, lists) which is
+    # legitimate, not a watermark.
+    for m in re.finditer(r"(?<=\S)[ \t]{2,}", text):
         first = m.group(0)[:1]
         findings.append(
             WatermarkFinding(

@@ -108,6 +108,15 @@ def test_excessive_whitespace_finding() -> None:
     assert "4 consecutive" in exc[0].note
 
 
+def test_excessive_whitespace_ignores_indentation() -> None:
+    """Line-leading whitespace (code blocks, lists, poetry) is legitimate
+    indentation, not a watermark. Only interior runs are flagged."""
+    text = "    indented line one.\n    indented line two."
+    res = clean(text)
+    exc = [f for f in res.findings if f.kind == "excessive_whitespace"]
+    assert exc == []
+
+
 def test_strips_soft_hyphen_and_bidi_override() -> None:
     """cronos3k additions: soft hyphen and bidi overrides must be stripped."""
     text = "a\u00ADb\u202Ec"
