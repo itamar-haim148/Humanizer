@@ -177,3 +177,109 @@ def test_llm_polish_extract_raises_on_blocked_response() -> None:
     blocked = {"candidates": [], "promptFeedback": {"blockReason": "SAFETY"}}
     with pytest.raises(LLMPolishError, match="blocked: SAFETY"):
         _extract_text(blocked)
+
+
+# ---------------------------------------------------------------------------
+# LLM-first ordering: Python scrubs whatever Gemini brings back in
+# ---------------------------------------------------------------------------
+
+
+def test_llm_output_gets_scrubbed_by_post_pipeline(
+    client: TestClient, configured
+) -> None:
+    """If Gemini returns text containing AI vocabulary and zero-width
+    watermark characters, the post-LLM cleaner + lexical engines must
+    remove them before the response reaches the user.
+    """
+    from humanizer.engines import llm_polish
+
+    # Gemini's "polished" output deliberately contains:
+    #  - "utilize" + "leverage" + "delve" (AI vocabulary the lexical engine kills)
+    #  - U+200B zero-width space (the cleaner strips it)
+    dirty = (
+        "Companies utilize this approach to leverage their data.\u200B "
+        "Teams delve into the details every week."
+    )
+
+    async def _fake_polish(text, language, strength, api_key):
+        return llm_polish.LLMPolishResult(
+            text=dirty,
+            model="gemini-3.5-flash",
+            prompt_tokens=10,
+            output_tokens=20,
+        )
+
+    with patch.object(llm_polish, "polish", side_effect=_fake_polish):
+        r = client.post(
+            "/api/humanize/llm",
+            json={
+                "text": "Original input sentence about the topic.",
+                "language": "en",
+                "strength": "aggressive",
+            },
+            headers={"Authorization": _basic("test@example.com", "test-secret")},
+        )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    out = body["humanized_text"]
+    # Watermark must be gone.
+    assert "\u200B" not in out
+    # AI vocabulary must be replaced.
+    assert "utilize" not in out.lower()
+    assert "leverage" not in out.lower()
+    assert "delve" not in out.lower()
+
+
+def test_llm_pipeline_calls_engines_in_correct_order(
+    client: TestClient, configured
+) -> None:
+    """Verify the call order is:
+    cleaner(input) -> LLM -> cleaner -> lexical -> structural -> cleaner.
+    """
+    from humanizer.engines import cleaner, lexical_en, llm_polish, structural
+
+    calls: list[str] = []
+
+    real_clean = cleaner.clean
+    real_lex = lexical_en.humanize_lexical
+    real_struct = structural.humanize_structural
+
+    def _rec_clean(text):
+        calls.append("cleaner")
+        return real_clean(text)
+
+    def _rec_lex(text, strength):
+        calls.append("lexical")
+        return real_lex(text, strength)
+
+    def _rec_struct(text, language, strength):
+        calls.append("structural")
+        return real_struct(text, language, strength)
+
+    async def _fake_polish(text, language, strength, api_key):
+        calls.append("llm")
+        return llm_polish.LLMPolishResult(text=text, model="gemini-3.5-flash")
+
+    with (
+        patch.object(cleaner, "clean", side_effect=_rec_clean),
+        patch.object(lexical_en, "humanize_lexical", side_effect=_rec_lex),
+        patch.object(structural, "humanize_structural", side_effect=_rec_struct),
+        patch.object(llm_polish, "polish", side_effect=_fake_polish),
+    ):
+        r = client.post(
+            "/api/humanize/llm",
+            json={"text": "Hello world.", "language": "en", "strength": "medium"},
+            headers={"Authorization": _basic("test@example.com", "test-secret")},
+        )
+
+    assert r.status_code == 200, r.text
+    llm_idx = calls.index("llm")
+    lex_idx = calls.index("lexical")
+    struct_idx = calls.index("structural")
+    # LLM happens before lexical and structural.
+    assert llm_idx < lex_idx < struct_idx
+    # At least one cleaner call before the LLM (input scrub).
+    assert "cleaner" in calls[:llm_idx]
+    # And at least one cleaner call after the LLM (LLM-output scrub).
+    assert "cleaner" in calls[llm_idx + 1 :]

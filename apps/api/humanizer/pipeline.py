@@ -205,13 +205,17 @@ def run_humanize(req: HumanizeRequest) -> HumanizeResponse:
 
 
 async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMResponse:
-    """Run the full statistical pipeline, then send the output to Gemini Flash
-    3.5 for a final human-voice polish.
+    """LLM first, then scrub its output with the statistical pipeline.
 
-    The statistical pre-pass matters because it:
-    - strips watermarks the LLM might otherwise preserve
-    - removes the most blatant AI tells ('delve', 'leverage') deterministically
-    - gives a measurable metrics_before/metrics_after delta
+    Order: cleaner(input) -> LLM polish -> cleaner -> lexical -> structural -> cleaner.
+
+    Why LLM-first:
+    - Gemini rewrites for natural human voice but routinely re-introduces
+      AI tells ("delve", "leverage", "moreover") and can echo invisible
+      watermark characters back into the text. Running the deterministic
+      Python pipeline *after* the LLM removes those final-mile traces.
+    - The initial cleaner still strips watermarks from the user's input so
+      Gemini never sees them and never echoes them back.
 
     Raises llm_polish.LLMPolishError on Gemini failure; caller maps to HTTP 502.
     """
@@ -231,6 +235,22 @@ async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMRes
     )
     working = cleaning.cleaned_text
 
+    # 1. LLM polish on the cleaned input.
+    polish_result = await llm_polish.polish(
+        text=working,
+        language=req.language,
+        strength=req.strength,
+        api_key=api_key,
+    )
+    working = polish_result.text
+    transformations.append(f"llm_polish:{polish_result.model}")
+
+    # 2. Scrub the LLM output: watermarks first (so the lexical/structural
+    #    engines see clean text), then AI vocabulary, then sentence-shape
+    #    rewrites.
+    post_llm = cleaner.clean(working)
+    working = post_llm.cleaned_text
+
     if req.language == "en":
         lex_en = lexical_en.humanize_lexical(working, req.strength)
         working = lex_en.text
@@ -242,16 +262,7 @@ async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMRes
 
     working = structural.humanize_structural(working, req.language, req.strength)
 
-    # LLM polish (this is the new step).
-    polish_result = await llm_polish.polish(
-        text=working,
-        language=req.language,
-        strength=req.strength,
-        api_key=api_key,
-    )
-    working = polish_result.text
-    transformations.append(f"llm_polish:{polish_result.model}")
-
+    # 3. Defence-in-depth final clean.
     final_clean = cleaner.clean(working)
     working = final_clean.cleaned_text
 
