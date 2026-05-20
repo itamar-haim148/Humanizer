@@ -84,3 +84,34 @@ def test_to_report_serializable() -> None:
     dumped = rep.model_dump()
     assert dumped["removed_count"] == 1
     assert dumped["findings"][0]["kind"] == "zero_width"
+
+
+def test_preserves_lrm_rlm_as_bidi_marks() -> None:
+    """LRM (U+200E) and RLM (U+200F) have Unicode category Cf — they must be
+    kept (legitimate in Hebrew docs) but reported as findings.
+    """
+    text = "שלום\u200E עולם\u200F"
+    res = clean(text)
+    assert "\u200E" in res.cleaned_text
+    assert "\u200F" in res.cleaned_text
+    bidi = [f for f in res.findings if f.kind == "bidi_mark"]
+    assert len(bidi) == 2
+    # Must not be counted as removed.
+    assert res.removed_count == 0
+
+
+def test_excessive_whitespace_finding() -> None:
+    text = "hello    world"  # 4 spaces
+    res = clean(text)
+    exc = [f for f in res.findings if f.kind == "excessive_whitespace"]
+    assert len(exc) == 1
+    assert "4 consecutive" in exc[0].note
+
+
+def test_strips_soft_hyphen_and_bidi_override() -> None:
+    """cronos3k additions: soft hyphen and bidi overrides must be stripped."""
+    text = "a\u00ADb\u202Ec"
+    res = clean(text)
+    assert "\u00AD" not in res.cleaned_text
+    assert "\u202E" not in res.cleaned_text
+    assert res.removed_count == 2

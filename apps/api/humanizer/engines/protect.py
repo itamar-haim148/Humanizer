@@ -64,6 +64,19 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 _FENCED_CODE_RE = re.compile(r"```[\s\S]*?```", flags=re.MULTILINE)
 _PARENTHETICAL_META_RE = re.compile(r"\([^()\n]*\d[^()\n]*\)")
 
+# Markdown link / image syntax (StealthHumanizer patterns).
+# Image: ![alt](url)   Link: [text](url)
+# Protect the *whole* construct — alt/text often contains brand names and the
+# `(url)` portion is already URL-protected, but combining them avoids partial
+# transforms that break Markdown rendering.
+_MD_IMAGE_RE = re.compile(r"!\[[^\]\n]*\]\([^)\n]+\)")
+_MD_LINK_RE = re.compile(r"(?<!\!)\[[^\]\n]+\]\([^)\n]+\)")
+
+# Social mentions and hashtags. Common in marketing copy that gets pasted in.
+# Mentions: @username  Hashtags: #topic  (ASCII + Hebrew letters allowed)
+_MENTION_RE = re.compile(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_\u05D0-\u05EA][A-Za-z0-9_\.\-\u05D0-\u05EA]{0,49}")
+_HASHTAG_RE = re.compile(r"(?<![A-Za-z0-9_])#[A-Za-z0-9_\u05D0-\u05EA][A-Za-z0-9_\u05D0-\u05EA]{0,49}")
+
 # 2+ consecutive Title-Case tokens — likely a proper noun / brand / product name.
 # Each token requires 2+ characters to avoid catching "I" or single-letter
 # initials. We accept hyphens, ampersands, digits within a token.
@@ -74,6 +87,7 @@ _PROPER_NOUN_RUN_RE = re.compile(
 # Line-start markers.
 _HEADING_HASH_RE = re.compile(r"^\s*#{1,6}\s+")
 _LIST_MARKER_RE = re.compile(r"^\s*(?:\d+[.)]|[-*\u2022\u2013])\s+")
+_BLOCKQUOTE_RE = re.compile(r"^\s*(?:>\s*)+")
 
 # Label pattern, e.g.
 #   "Title:"
@@ -112,6 +126,12 @@ def _classify_line(line: str) -> tuple[LineKind, int]:
     m = _HEADING_HASH_RE.match(line)
     if m:
         return "heading", 0
+
+    # Blockquote — protect the "> " marker(s), allow body to be transformed
+    # as prose. Treated as list_item for protection purposes.
+    m = _BLOCKQUOTE_RE.match(line)
+    if m:
+        return "list_item", m.end()
 
     # List item.
     m = _LIST_MARKER_RE.match(line)
@@ -199,7 +219,13 @@ def lexical_protected_ranges(text: str) -> list[tuple[int, int]]:
         for m in rx.finditer(text):
             ranges.append((m.start(), m.end()))
 
-    for rx in (_URL_RE, _EMAIL_RE, _PARENTHETICAL_META_RE):
+    # Markdown images/links before URL detection so the [text](url) construct
+    # is protected as a whole, not just the url portion.
+    for rx in (_MD_IMAGE_RE, _MD_LINK_RE):
+        for m in rx.finditer(text):
+            ranges.append((m.start(), m.end()))
+
+    for rx in (_URL_RE, _EMAIL_RE, _PARENTHETICAL_META_RE, _MENTION_RE, _HASHTAG_RE):
         for m in rx.finditer(text):
             ranges.append((m.start(), m.end()))
 

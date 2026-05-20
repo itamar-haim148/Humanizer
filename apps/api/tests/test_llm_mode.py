@@ -148,9 +148,7 @@ def test_llm_polish_raises_on_empty_api_key() -> None:
     from humanizer.engines.llm_polish import LLMPolishError, polish
 
     with pytest.raises(LLMPolishError, match="gemini_api_key_missing"):
-        asyncio.get_event_loop().run_until_complete(
-            polish("text", "en", "medium", "")
-        )
+        asyncio.run(polish("text", "en", "medium", ""))
 
 
 def test_llm_polish_payload_includes_strength_temperature() -> None:

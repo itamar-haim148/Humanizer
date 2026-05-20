@@ -127,3 +127,47 @@ def test_mid_sentence_two_token_run_fully_protected() -> None:
     loyalty = text.index("Loyalty")
     assert protect.is_protected(yotpo, ranges)
     assert protect.is_protected(loyalty, ranges)
+
+
+# ---------------------------------------------------------------------------
+# Markdown / social construct protection (StealthHumanizer-derived patterns)
+# ---------------------------------------------------------------------------
+
+
+def test_protects_markdown_link() -> None:
+    text = "See [our docs](https://example.com/docs) for more info."
+    ranges = protect.lexical_protected_ranges(text)
+    start = text.index("[our docs]")
+    end = text.index(")") + 1
+    assert any(s <= start and e >= end for s, e in ranges)
+
+
+def test_protects_markdown_image() -> None:
+    text = "Logo: ![alt text](https://cdn.example.com/x.png) — nice."
+    ranges = protect.lexical_protected_ranges(text)
+    start = text.index("![alt text]")
+    end = text.index(".png)") + len(".png)")
+    assert any(s <= start and e >= end for s, e in ranges)
+
+
+def test_protects_hashtag_and_mention() -> None:
+    text = "Tagging @yotpo with #loyalty for context."
+    ranges = protect.lexical_protected_ranges(text)
+    at = text.index("@yotpo")
+    hashtag = text.index("#loyalty")
+    assert protect.is_protected(at, ranges)
+    assert protect.is_protected(hashtag, ranges)
+
+
+def test_blockquote_marker_protected_body_free() -> None:
+    text = "> This block sentence has a verb and full punctuation here."
+    [line] = protect.classify_lines(text)
+    assert line.kind == "list_item"
+    assert line.body_start > 0
+    assert line.text[line.body_start:].startswith("This")
+    ranges = protect.lexical_protected_ranges(text)
+    # Marker protected.
+    assert protect.is_protected(0, ranges)
+    # Body free for transformation.
+    body_idx = text.index("This")
+    assert not protect.is_protected(body_idx, ranges)

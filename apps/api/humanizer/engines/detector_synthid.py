@@ -13,7 +13,9 @@ the multi-GB model-download cost unless the operator opts in.
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -92,6 +94,17 @@ def detect_synthid(text: str, model_name: str | None = None) -> SynthIDResult:
         outcome = _try_load(model_name or settings.synthid_model)
         if outcome.detector is None:
             _logger.warning("synthid_unavailable reason=%s", outcome.reason)
+            # Fallback: g-value proxy. Marked available=False so callers know
+            # this is not the real detector, but a score is still surfaced
+            # with detail="g_value_proxy:<reason>".
+            proxy = g_value_proxy_score(text)
+            if proxy is not None:
+                return SynthIDResult(
+                    enabled=True,
+                    available=False,
+                    score=proxy,
+                    detail=f"g_value_proxy:{outcome.reason}",
+                )
             return SynthIDResult(
                 enabled=True,
                 available=False,
@@ -118,6 +131,51 @@ def detect_synthid(text: str, model_name: str | None = None) -> SynthIDResult:
         score=score,
         detail=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# G-value statistical proxy (no ML deps)
+# ---------------------------------------------------------------------------
+#
+# SynthID's published mechanism computes deterministic per-token "g-values"
+# from a secret key + (context, token) hash. Watermarked text exhibits a
+# small but persistent positive bias in the mean g-value. We cannot replicate
+# the real mechanism without the original model + secret key, but we can
+# compute a directionally-similar proxy that catches *some* statistical
+# regularities without requiring transformers or a GPU.
+#
+# Method:
+#   1. Tokenize into whitespace-separated tokens (case-folded).
+#   2. For each (prev_token, curr_token) bigram, derive a g-value in [0,1)
+#      via SHA-256(prev || "\x1f" || curr) — first 8 bytes / 2**64.
+#   3. Score is min(1, 4 * |mean - 0.5|).
+#
+# This deviates from 0 only when the same bigram patterns hash into a biased
+# region of [0,1). It is a sanity-check proxy: not a replacement for the
+# real detector. The result is always returned with detail="g_value_proxy".
+
+_TOKEN_RE = re.compile(r"[\w\u05D0-\u05EA]+", flags=re.UNICODE)
+
+
+def _g_value(prev: str, curr: str) -> float:
+    """Deterministic g-value in [0, 1) from a (prev, curr) bigram."""
+    digest = hashlib.sha256(
+        prev.encode("utf-8") + b"\x1f" + curr.encode("utf-8")
+    ).digest()
+    return int.from_bytes(digest[:8], "big") / (1 << 64)
+
+
+def g_value_proxy_score(text: str) -> float | None:
+    """Return a proxy score in [0,1], or None if text has < 4 tokens.
+
+    Higher → larger deviation from the unwatermarked expected mean of 0.5.
+    """
+    tokens = [t.lower() for t in _TOKEN_RE.findall(text)]
+    if len(tokens) < 4:
+        return None
+    gs = [_g_value(tokens[i - 1], tokens[i]) for i in range(1, len(tokens))]
+    mean = sum(gs) / len(gs)
+    return min(1.0, 4.0 * abs(mean - 0.5))
 
 
 def _coerce_score(raw: Any) -> float:

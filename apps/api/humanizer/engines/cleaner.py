@@ -10,6 +10,7 @@ Pure stdlib; no dependencies.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal
@@ -247,6 +248,21 @@ def clean(text: str) -> CleanResult:
             )
             out.append(" ")
             continue
+        if ch in _REPORT_ONLY_CHARS:
+            # Preserve LRM/RLM — may be legitimate in Hebrew docs. Must be
+            # checked BEFORE _is_control because LRM/RLM are category Cf and
+            # would otherwise be stripped.
+            findings.append(
+                WatermarkFinding(
+                    kind="bidi_mark",
+                    char=ch,
+                    codepoint=_codepoint(ch),
+                    index=i,
+                    note=_REPORT_ONLY_CHARS[ch] + " (kept — may be legitimate)",
+                )
+            )
+            out.append(ch)
+            continue
         if _is_control(ch):
             removed += 1
             findings.append(
@@ -262,6 +278,19 @@ def clean(text: str) -> CleanResult:
         out.append(ch)
 
     interim = "".join(out)
+    # Detect runs of 2+ consecutive ASCII spaces/tabs as a watermark signal
+    # (cronos3k pattern). Report-only — collapsing whitespace is a stylistic
+    # decision left to the pipeline's structural engines.
+    for m in re.finditer(r"[ \t]{2,}", interim):
+        findings.append(
+            WatermarkFinding(
+                kind="excessive_whitespace",
+                char=m.group(0)[:1],
+                codepoint=_codepoint(" "),
+                index=m.start(),
+                note=f"{m.end() - m.start()} consecutive whitespace chars",
+            )
+        )
     # NFKC normalize; record homoglyph deltas.
     nfkc = unicodedata.normalize("NFKC", interim)
     if nfkc != interim:
