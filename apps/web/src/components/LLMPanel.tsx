@@ -5,6 +5,7 @@ import type { Dict, Locale } from "@/i18n";
 import { formatString } from "@/i18n";
 import { humanizeLLM, makeBasicAuth } from "@/lib/api";
 import type { HumanizeLLMResponse, Strength } from "@/lib/types";
+import { FormattedOutput } from "./FormattedOutput";
 import { MetricsCard } from "./MetricsCard";
 
 interface Props {
@@ -30,7 +31,6 @@ export function LLMPanel({ locale, dict }: Props) {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<HumanizeLLMResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(SESSION_KEY);
@@ -127,27 +127,6 @@ export function LLMPanel({ locale, dict }: Props) {
       return;
     }
     setResp(result.data);
-  }
-
-  function onCopy() {
-    if (!resp) return;
-    void navigator.clipboard.writeText(resp.humanized_text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  function onDownload() {
-    if (!resp) return;
-    const blob = new Blob(["\uFEFF" + resp.humanized_text], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `humanized-llm-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // ---------- render: login ----------
@@ -257,12 +236,12 @@ export function LLMPanel({ locale, dict }: Props) {
               </span>
             ) : null}
           </div>
-          <textarea
+          <FormattedOutput
             id="llm-output"
-            value={loading ? "…" : resp?.humanized_text ?? ""}
-            readOnly
-            rows={14}
-            className="w-full resize-y rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-sm"
+            value={resp?.humanized_text ?? ""}
+            loading={loading}
+            dict={dict}
+            fileBaseName="humanized-llm"
           />
           {resp ? (
             <div className="flex flex-wrap gap-3 text-xs muted">
@@ -291,24 +270,6 @@ export function LLMPanel({ locale, dict }: Props) {
               </button>
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onCopy}
-              disabled={!resp}
-              className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm disabled:opacity-50"
-            >
-              {copied ? dict.humanize.copied : dict.humanize.copy}
-            </button>
-            <button
-              type="button"
-              onClick={onDownload}
-              disabled={!resp}
-              className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm disabled:opacity-50"
-            >
-              {dict.humanize.download}
-            </button>
-          </div>
         </div>
       </div>
 

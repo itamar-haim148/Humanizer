@@ -8,6 +8,7 @@ import type {
   HumanizeResponse,
   Strength,
 } from "@/lib/types";
+import { FormattedOutput } from "./FormattedOutput";
 import { MetricsCard } from "./MetricsCard";
 
 interface Props {
@@ -24,7 +25,6 @@ export function HumanizePanel({ locale, dict }: Props) {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<HumanizeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const wordCount = useMemo(
     () => (input.trim() ? input.trim().split(/\s+/).length : 0),
@@ -56,27 +56,6 @@ export function HumanizePanel({ locale, dict }: Props) {
       return;
     }
     setResp(result.data);
-  }
-
-  function onCopy() {
-    if (!resp) return;
-    void navigator.clipboard.writeText(resp.humanized_text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  function onDownload() {
-    if (!resp) return;
-    const blob = new Blob(["\uFEFF" + resp.humanized_text], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `humanized-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   function onClear() {
@@ -120,12 +99,12 @@ export function HumanizePanel({ locale, dict }: Props) {
               </span>
             ) : null}
           </div>
-          <textarea
+          <FormattedOutput
             id="hum-output"
-            value={loading ? "…" : resp?.humanized_text ?? ""}
-            readOnly
-            rows={14}
-            className="w-full resize-y rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-sm"
+            value={resp?.humanized_text ?? ""}
+            loading={loading}
+            dict={dict}
+            fileBaseName="humanized"
           />
           {error ? (
             <div className="space-y-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">
@@ -139,31 +118,13 @@ export function HumanizePanel({ locale, dict }: Props) {
               </button>
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onCopy}
-              disabled={!resp}
-              className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm disabled:opacity-50"
-            >
-              {copied ? dict.humanize.copied : dict.humanize.copy}
-            </button>
-            <button
-              type="button"
-              onClick={onDownload}
-              disabled={!resp}
-              className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm disabled:opacity-50"
-            >
-              {dict.humanize.download}
-            </button>
-            <button
-              type="button"
-              onClick={onClear}
-              className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm"
-            >
-              {dict.humanize.clear}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-md border border-[rgb(var(--border))] px-3 py-1.5 text-sm"
+          >
+            {dict.humanize.clear}
+          </button>
         </div>
       </div>
 

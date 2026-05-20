@@ -41,3 +41,103 @@ html[dir="ltr"] body {
 .muted {
   color: rgb(var(--muted));
 }
+
+/* Rendered Markdown output. Restores native semantics that Tailwind
+   `preflight` would otherwise neutralise (headings, lists, blockquotes),
+   so users can visually verify the structure that gets copied to the
+   clipboard. RTL-aware: list bullets/markers flip via logical padding. */
+.prose-output h1,
+.prose-output h2,
+.prose-output h3,
+.prose-output h4,
+.prose-output h5,
+.prose-output h6 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0.9em 0 0.5em;
+}
+.prose-output h1 { font-size: 1.6em; }
+.prose-output h2 { font-size: 1.35em; }
+.prose-output h3 { font-size: 1.18em; }
+.prose-output h4 { font-size: 1.05em; }
+.prose-output h5,
+.prose-output h6 { font-size: 1em; }
+
+.prose-output p {
+  margin: 0.5em 0;
+}
+
+.prose-output strong { font-weight: 600; }
+.prose-output em { font-style: italic; }
+
+.prose-output a {
+  color: rgb(37 99 235);
+  text-decoration: underline;
+}
+.dark .prose-output a {
+  color: rgb(96 165 250);
+}
+
+.prose-output ul,
+.prose-output ol {
+  margin: 0.5em 0;
+  padding-inline-start: 1.5em;
+}
+.prose-output ul { list-style: disc; }
+.prose-output ol { list-style: decimal; }
+.prose-output li { margin: 0.2em 0; }
+.prose-output li > p { margin: 0.2em 0; }
+
+.prose-output blockquote {
+  margin: 0.6em 0;
+  padding-inline-start: 0.9em;
+  border-inline-start: 3px solid rgb(var(--border));
+  color: rgb(var(--muted));
+}
+
+.prose-output code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  background: rgb(var(--background));
+  padding: 0.1em 0.35em;
+  border-radius: 0.25em;
+  border: 1px solid rgb(var(--border));
+}
+.prose-output pre {
+  margin: 0.6em 0;
+  padding: 0.7em 0.9em;
+  background: rgb(var(--background));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.4em;
+  overflow-x: auto;
+}
+.prose-output pre code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+
+.prose-output hr {
+  border: 0;
+  border-top: 1px solid rgb(var(--border));
+  margin: 1em 0;
+}
+
+.prose-output table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 0.95em;
+}
+.prose-output th,
+.prose-output td {
+  border: 1px solid rgb(var(--border));
+  padding: 0.35em 0.6em;
+  text-align: start;
+}
+.prose-output th {
+  background: rgb(var(--background));
+  font-weight: 600;
+}
+
+.prose-output > *:first-child { margin-top: 0; }
+.prose-output > *:last-child { margin-bottom: 0; }
