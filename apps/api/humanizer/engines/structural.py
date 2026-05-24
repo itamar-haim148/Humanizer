@@ -84,6 +84,7 @@ _LONG_EN_WORDS = 28
 _LONG_HE_WORDS = 22
 _SHORT_WORDS = 6
 _MIN_SENTENCES_FOR_OPENER = 3
+_MAX_PARAGRAPH_SENTENCES = 3  # cap per paragraph; longer paragraphs are split
 
 # Burstiness booster: if a paragraph has ≥3 prose sentences with a
 # burstiness (stdev/mean of word counts) below this threshold, the
@@ -296,7 +297,9 @@ def _transform_body(
         )
         if can_merge:
             stripped = cur.rstrip(".!?")
-            merged.append(f"{stripped} \u2014 {nxt}")
+            # Period-merge (NOT em-dash). Em-dash is the #1 AI tell and is
+            # stripped by the cleaner; emitting it here would just be undone.
+            merged.append(f"{stripped}. {nxt}")
             i += 2
         else:
             merged.append(cur)
@@ -356,12 +359,42 @@ def humanize_structural(
         out_lines.append(prefix + transformed)
 
     rebuilt = "\n".join(out_lines)
+    rebuilt = _split_long_paragraphs(rebuilt)
 
     # Preserve a trailing newline if the original had one (split("\n") on a
     # string ending in "\n" yields a final "" item which we re-emit cleanly).
     if text.endswith("\n") and not rebuilt.endswith("\n"):
         rebuilt += "\n"
     return rebuilt
+
+
+def _split_long_paragraphs(text: str) -> str:
+    """Break prose paragraphs with more than _MAX_PARAGRAPH_SENTENCES
+    sentences into multiple paragraphs (blank-line separated). Skips chunks
+    that contain headings, list items, label lines, or code fences."""
+    out_paragraphs: list[str] = []
+    for chunk in re.split(r"(\n\s*\n)", text):
+        if re.fullmatch(r"\n\s*\n", chunk):
+            out_paragraphs.append(chunk)
+            continue
+        lines = chunk.split("\n")
+        if any(
+            _LIST_MARKER_RE.match(ln) or _LABEL_PREFIX_RE.match(ln)
+            or ln.lstrip().startswith("#")
+            or ln.lstrip().startswith("```")
+            for ln in lines
+        ):
+            out_paragraphs.append(chunk)
+            continue
+        sentences = _split_sentences(chunk)
+        if len(sentences) <= _MAX_PARAGRAPH_SENTENCES:
+            out_paragraphs.append(chunk)
+            continue
+        groups: list[str] = []
+        for i in range(0, len(sentences), _MAX_PARAGRAPH_SENTENCES):
+            groups.append(" ".join(sentences[i:i + _MAX_PARAGRAPH_SENTENCES]))
+        out_paragraphs.append("\n\n".join(groups))
+    return "".join(out_paragraphs)
 
 
 # ---------------------------------------------------------------------------

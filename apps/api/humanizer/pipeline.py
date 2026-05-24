@@ -17,14 +17,18 @@ import re
 import time
 
 from humanizer.engines import (
+    ai_tells,
     cleaner,
     detector_statistical,
     detector_synthid,
     detector_watermark,
+    headings,
     lexical_en,
     lexical_he,
     llm_polish,
+    numbers,
     post_llm_polish,
+    stealth,
     structural,
 )
 from humanizer.models import (
@@ -168,6 +172,24 @@ def run_humanize(req: HumanizeRequest) -> HumanizeResponse:
     cleaning = cleaner.clean(working) if req.clean_watermarks else cleaner.CleanResult(cleaned_text=working)
     working = cleaning.cleaned_text
 
+    # Layer 4 first — sentence-case headings (EN only). Done BEFORE ai_tells
+    # so title-case headings stop tripping the proper-noun-run detector
+    # inside protect.py, which would otherwise shield AI tells living in the
+    # heading body (e.g. "in today's digital landscape").
+    head_t = headings.sentence_case_headings(working, req.language)
+    working = head_t.text
+    transformations.extend(head_t.transformations)
+
+    # Layer 2 — AI-tell scrub (deterministic regex catalogue).
+    ai_t = ai_tells.scrub_ai_tells(working, req.strength)
+    working = ai_t.text
+    transformations.extend(ai_t.transformations)
+
+    # Layer 3 — number humanization (comma separators, year exception).
+    num_t = numbers.humanize_numbers(working)
+    working = num_t.text
+    transformations.extend(num_t.transformations)
+
     if req.language == "en":
         lex_en = lexical_en.humanize_lexical(working, req.strength)
         working = lex_en.text
@@ -178,6 +200,17 @@ def run_humanize(req: HumanizeRequest) -> HumanizeResponse:
         transformations.extend(lex_he.transformations)
 
     working = structural.humanize_structural(working, req.language, req.strength)
+
+    # Layer 6 — stealth (perplexity vocab swap + burstiness fragments).
+    stealth_t = stealth.stealth_pass(working, req.strength)
+    working = stealth_t.text
+    transformations.extend(stealth_t.transformations)
+
+    # Layer 7 — deterministic backstops (filler/hacky/comma/intensifier).
+    if req.language == "en":
+        post_t = post_llm_polish.polish(working, req.strength)
+        working = post_t.text
+        transformations.extend(post_t.transformations)
 
     final_clean = cleaner.clean(working)
     working = final_clean.cleaned_text
@@ -247,20 +280,25 @@ async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMRes
     working = polish_result.text
     transformations.append(f"llm_polish:{polish_result.model}")
 
-    # 2. Scrub the LLM output: watermarks first (so the lexical/structural
-    #    engines see clean text), then LLM-specific structural tells
-    #    (semicolon-pivots, intensifier adjectives), then AI vocabulary,
-    #    then sentence-shape rewrites.
+    # 2. Scrub the LLM output: watermarks first so the rest of the pipeline
+    #    sees ASCII-clean text, then run the full deterministic stack.
     post_clean = cleaner.clean(working)
     working = post_clean.cleaned_text
 
-    # 2b. Post-LLM pattern fixes — only meaningful in LLM mode because
-    #     these target Gemini/GPT rewrite habits that the regular pipeline
-    #     never has to deal with.
-    if req.language == "en":
-        post_polish = post_llm_polish.polish(working, req.strength)
-        working = post_polish.text
-        transformations.extend(post_polish.transformations)
+    # Layer 4 first — see run_humanize for the reordering rationale.
+    head_t = headings.sentence_case_headings(working, req.language)
+    working = head_t.text
+    transformations.extend(head_t.transformations)
+
+    # Layer 2 — AI-tell scrub.
+    ai_t = ai_tells.scrub_ai_tells(working, req.strength)
+    working = ai_t.text
+    transformations.extend(ai_t.transformations)
+
+    # Layer 3 — number humanization.
+    num_t = numbers.humanize_numbers(working)
+    working = num_t.text
+    transformations.extend(num_t.transformations)
 
     if req.language == "en":
         lex_en = lexical_en.humanize_lexical(working, req.strength)
@@ -272,6 +310,17 @@ async def run_humanize_llm(req: HumanizeRequest, api_key: str) -> HumanizeLLMRes
         transformations.extend(lex_he.transformations)
 
     working = structural.humanize_structural(working, req.language, req.strength)
+
+    # Layer 6 — stealth pass.
+    stealth_t = stealth.stealth_pass(working, req.strength)
+    working = stealth_t.text
+    transformations.extend(stealth_t.transformations)
+
+    # Layer 7 — deterministic post-LLM polish.
+    if req.language == "en":
+        post_polish = post_llm_polish.polish(working, req.strength)
+        working = post_polish.text
+        transformations.extend(post_polish.transformations)
 
     # 3. Defence-in-depth final clean.
     final_clean = cleaner.clean(working)

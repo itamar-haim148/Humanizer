@@ -41,16 +41,27 @@ def _humanize(text: str, strength: str = "medium") -> str:
 
 
 def test_numbered_headings_preserved_at_medium() -> None:
+    # Layer 4 lowercases title-case headings (sentence case). The number
+    # prefix and the first word stay; subsequent non-allowlist words go
+    # lowercase. "Yotpo" stays capped (it's in PRESERVE_CAPS).
     out = _humanize(SEO_INPUT, "medium")
-    for marker in ("1. Flexible Earning Rules", "2. Setup and Implementation",
-                   "3. Platform Migration", "4. Loyalty Strategy & Scaling"):
+    for marker in (
+        "1. Flexible earning rules",
+        "2. Setup and implementation",
+        "3. Platform migration",
+        "4. Loyalty strategy & scaling",
+    ):
         assert marker in out, f"missing heading: {marker!r}\n---\n{out}"
 
 
 def test_numbered_headings_preserved_at_aggressive() -> None:
     out = _humanize(SEO_INPUT, "aggressive")
-    for marker in ("1. Flexible Earning Rules", "2. Setup and Implementation",
-                   "3. Platform Migration", "4. Loyalty Strategy & Scaling"):
+    for marker in (
+        "1. Flexible earning rules",
+        "2. Setup and implementation",
+        "3. Platform migration",
+        "4. Loyalty strategy & scaling",
+    ):
         assert marker in out
 
 

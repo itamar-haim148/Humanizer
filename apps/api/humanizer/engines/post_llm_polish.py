@@ -185,6 +185,105 @@ def _strip_intensifier(m: re.Match[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Filler transitions — sentence-initial connectives that mark LLM prose.
+# Run at sentence-start position only (after . ! ? or paragraph start).
+# ---------------------------------------------------------------------------
+
+_FILLER_TRANSITIONS: tuple[tuple[str, str], ...] = (
+    (r"(?m)^Furthermore,[ \t]+", ""),
+    (r"(?m)^Moreover,[ \t]+", ""),
+    (r"(?m)^Additionally,[ \t]+", "Also, "),
+    (r"(?<=[.!?])[ \t]+Furthermore,[ \t]+", " "),
+    (r"(?<=[.!?])[ \t]+Moreover,[ \t]+", " "),
+    (r"(?<=[.!?])[ \t]+Additionally,[ \t]+", " Also, "),
+    # "The results speak for themselves" can be terminated by any of . , : ; ! ?
+    # We consume the terminator + trailing horizontal whitespace (not newlines).
+    (r"\bThe results speak for themselves[.,:;!?][ \t]*", ""),
+    (r"\bAt the end of the day,?[ \t]*", ""),
+    (r"\bBut here'?s the thing,?[ \t]*", ""),
+    (r"\bAt the heart of it,?[ \t]*", ""),
+    (r"\bWhen all is said and done,?[ \t]*", ""),
+)
+
+_FILLER_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(p, re.IGNORECASE), r) for p, r in _FILLER_TRANSITIONS
+)
+
+
+# ---------------------------------------------------------------------------
+# Hacky LLM phrases — overused metaphors and AI-staple constructions.
+# ---------------------------------------------------------------------------
+
+_HACKY_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    (r"\bthe digital landscape\b", "the market"),
+    (r"\bthe modern landscape\b", "the market"),
+    (r"\bthe current landscape\b", "the market"),
+    (r"\bin the ever[- ]evolving world of\b", "in"),
+    (r"\bin the ever[- ]changing world of\b", "in"),
+    (r"\bin today'?s fast[- ]paced world\b", "today"),
+    (r"\bin the world of\b", "in"),
+    (r"\bnavigate the complexities of\b", "work through"),
+    (r"\bnavigate the world of\b", "work in"),
+    # The stealth/perplexity pass can rewrite "navigate" → "handle". Catch the
+    # post-swap form too so the AI-tell phrasing doesn't survive.
+    (r"\bhandle the complexities of\b", "work through"),
+    (r"\bwork through the complexities of\b", "work through"),
+    (r"\bharness the power of\b", "use"),
+    (r"\bunleash the power of\b", "use"),
+    (r"\bunlock the potential of\b", "use"),
+    (r"\bunlock the full potential of\b", "use"),
+    (r"\bbridge the gap between\b", "connect"),
+    (r"\bpave the way for\b", "enable"),
+    (r"\bopen the door to\b", "lead to"),
+    (r"\btake your\s+(\w+)\s+to the next level\b", r"improve your \1"),
+    (r"\ba game[- ]changer\b", "important"),
+    (r"\ba paradigm shift\b", "a shift"),
+    (r"\bin order to better\b", "to better"),
+    (r"\bcutting[- ]edge\b", "modern"),
+    (r"\bstate[- ]of[- ]the[- ]art\b", "modern"),
+    (r"\bbest[- ]in[- ]class\b", "leading"),
+)
+
+_HACKY_COMPILED: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(p, re.IGNORECASE), r) for p, r in _HACKY_REPLACEMENTS
+)
+
+
+# Missing space after comma (common Gemini tell when emitting code-adjacent text)
+_COMMA_NO_SPACE_RE = re.compile(r",(?=[A-Za-z])")
+
+
+def _apply_compiled_subs(
+    text: str,
+    compiled: tuple[tuple[re.Pattern[str], str], ...],
+    tag: str,
+) -> tuple[str, list[str]]:
+    out = text
+    transforms: list[str] = []
+    for pat, repl in compiled:
+        new_out, n = pat.subn(repl, out)
+        if n:
+            transforms.append(f"post_llm:{tag}:{n}")
+            out = new_out
+    return out, transforms
+
+
+def _cleanup_post(text: str) -> str:
+    """Collapse double spaces and re-capitalize after period deletions."""
+    text = re.sub(r"  +", " ", text)
+    text = re.sub(r"\s+([.,;:!?])", r"\1", text)
+    # Re-capitalize sentence starts whose openers we just deleted.
+    text = re.sub(
+        r"([.!?]\s+)([a-z])",
+        lambda m: m.group(1) + m.group(2).upper(),
+        text,
+    )
+    if text and text[0].islower():
+        text = text[0].upper() + text[1:]
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Main entry
 # ---------------------------------------------------------------------------
 
@@ -201,16 +300,33 @@ def polish(text: str, strength: Strength) -> PostLLMResult:
     out, det_transforms = _apply_deterministic_subs(out)
     transformations.extend(det_transforms)
 
-    # 1. Semicolon pivot → two sentences
+    # 1. Filler-transition strip.
+    out, t = _apply_compiled_subs(out, _FILLER_COMPILED, "filler")
+    transformations.extend(t)
+
+    # 2. Hacky LLM-phrase substitutions.
+    out, t = _apply_compiled_subs(out, _HACKY_COMPILED, "hacky")
+    transformations.extend(t)
+
+    # 3. Missing-space-after-comma fix.
+    new_out, n = _COMMA_NO_SPACE_RE.subn(", ", out)
+    if n:
+        transformations.append(f"post_llm:comma_space:{n}")
+        out = new_out
+
+    # 4. Semicolon pivot → two sentences
     new_out, n = _SEMICOLON_PIVOT_RE.subn(_semicolon_split, out)
     if n:
         transformations.append(f"post_llm:semicolon_pivot:{n}")
         out = new_out
 
-    # 2. Strip redundant intensifier adjectives (aggressive + medium)
+    # 5. Strip redundant intensifier adjectives (aggressive + medium)
     new_out, n = _DETERMINER_ADJ_RE.subn(_strip_intensifier, out)
     if n:
         transformations.append(f"post_llm:strip_intensifier:{n}")
         out = new_out
+
+    # 6. Final cleanup pass (whitespace + recapitalize).
+    out = _cleanup_post(out)
 
     return PostLLMResult(text=out, transformations=transformations)

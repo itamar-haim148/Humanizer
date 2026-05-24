@@ -21,11 +21,13 @@ def test_long_sentence_split_en() -> None:
     assert out.count(".") >= 2 or out.count("—") >= 1
 
 
-def test_short_sentences_merged_en() -> None:
+def test_short_sentences_restructured_en() -> None:
     text = "It works. It runs. It scales. It rocks!"
     out = humanize_structural(text, "en", "aggressive")
-    # At least one em-dash from merging is expected.
-    assert "—" in out or out.count(".") < text.count(".")
+    # Em-dashes are an AI tell and must NEVER be inserted.
+    assert "\u2014" not in out
+    # Paragraph splitter (>3 sentences) must have introduced a blank line.
+    assert "\n\n" in out
 
 
 def test_burstiness_uplift_en() -> None:

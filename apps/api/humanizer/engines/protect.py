@@ -226,8 +226,17 @@ def _merge_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return [(s, e) for s, e in merged]
 
 
-def lexical_protected_ranges(text: str) -> list[tuple[int, int]]:
-    """Character ranges that lexical substitution engines must skip."""
+def lexical_protected_ranges(
+    text: str, *, protect_headings: bool = True
+) -> list[tuple[int, int]]:
+    """Character ranges that lexical substitution engines must skip.
+
+    `protect_headings`: when False, full heading lines are NOT added to the
+    protected set. Useful for AI-tell scrubbing where heading bodies (like
+    "Why This Matters In Today's Digital Landscape") need to be edited.
+    Brand-name protection inside the heading still applies via the
+    proper-noun run detector.
+    """
     ranges: list[tuple[int, int]] = []
 
     # Code spans first (so URLs inside backticks aren't double-counted, etc.).
@@ -272,7 +281,8 @@ def lexical_protected_ranges(text: str) -> list[tuple[int, int]]:
     # Line-level protections.
     for line in classify_lines(text):
         if line.kind == "heading":
-            ranges.append((line.start, line.end))
+            if protect_headings:
+                ranges.append((line.start, line.end))
         elif line.kind in ("list_item", "label_line"):
             ranges.append((line.start, line.start + line.body_start))
 

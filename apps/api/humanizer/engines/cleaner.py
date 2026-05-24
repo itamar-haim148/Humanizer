@@ -306,6 +306,13 @@ def clean(text: str) -> CleanResult:
         findings.extend(nfkc_findings)
     cleaned = nfkc
 
+    # Em-dash / en-dash strip. Em-dashes (U+2014) are the #1 AI tell — humans
+    # rarely type them. Replace with comma+space (most natural fit) regardless
+    # of surrounding whitespace. En-dashes (U+2013) are kept inside numeric
+    # ranges (e.g. "2020–2024") and replaced with " - " elsewhere.
+    cleaned = re.sub(r"\s*\u2014\s*", ", ", cleaned)
+    cleaned = re.sub(r"(?<=\D)\s*\u2013\s*(?=\D)", " - ", cleaned)
+
     return CleanResult(
         cleaned_text=cleaned,
         findings=findings,
